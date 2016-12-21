@@ -48,7 +48,7 @@ lazy val `play-ws-standalone` = project
 // WS API with Play dependencies
 lazy val `play-ws` = project
   .in(file("play-ws"))
-  .enablePlugins(PlayLibrary)
+  .enablePlugins(Playdoc, PlayLibrary)
   .settings(commonSettings)
   .settings(libraryDependencies ++= playDeps)
   .settings(libraryDependencies ++= specsBuild.map(_ % Test))
@@ -202,6 +202,21 @@ lazy val `play-ahc-ws` = project
   .disablePlugins(sbtassembly.AssemblyPlugin)
 
 //---------------------------------------------------------------
+// Integration tests
+//---------------------------------------------------------------
+
+lazy val `play-ws-integration-tests` = project
+  .in(file("play-ws-integration-tests"))
+  .enablePlugins(PlayLibrary)
+  .settings(disableDocs)
+  .settings(disablePublishing)
+  .settings(commonSettings)
+  .settings(libraryDependencies ++= playDeps)
+  .settings(libraryDependencies ++= specsBuild.map(_ % Test) ++ playTest)
+  .dependsOn(`play-ahc-ws`)
+  .disablePlugins(sbtassembly.AssemblyPlugin)
+
+//---------------------------------------------------------------
 // Root Project
 //---------------------------------------------------------------
 
@@ -219,19 +234,18 @@ lazy val root = project
   .disablePlugins(sbtassembly.AssemblyPlugin)
 
 //---------------------------------------------------------------
-// Integration tests
+// Play-Doc Documentation
 //---------------------------------------------------------------
 
-lazy val `play-ws-integration-tests` = project
-  .in(file("play-ws-integration-tests"))
-  .enablePlugins(PlayLibrary)
-  .settings(disableDocs)
-  .settings(disablePublishing)
+lazy val docs = project
+  .in(file("docs"))
   .settings(commonSettings)
-  .settings(libraryDependencies ++= playDeps)
-  .settings(libraryDependencies ++= specsBuild.map(_ % Test) ++ playTest)
-  .dependsOn(`play-ahc-ws`)
-  .disablePlugins(sbtassembly.AssemblyPlugin)
+  .enablePlugins(PlayDocsPlugin)
+  .dependsOn(`play-ws`)
+
+//---------------------------------------------------------------
+// Release Process (based off "sbt release")
+//---------------------------------------------------------------
 
 playBuildRepoName in ThisBuild := "play-ws"
 

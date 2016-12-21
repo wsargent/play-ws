@@ -130,6 +130,14 @@ public class JavaClient {
 
 This version of Play WS does not include Request Filters.  AsyncHttpClient request filter can still be added directly.
 
+## Documentation
+
+To run the documentation server, run:
+
+```
+sbt docs/run
+```
+
 ## License
 
 Play WS is licensed under the Apache license, version 2. See the LICENSE file for more information.
