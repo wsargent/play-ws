@@ -209,6 +209,23 @@ class AsyncCachingHandler[T](
     val result = Await.result(cache.get(key), timeout)
     logger.debug(s"processNotModifiedResponse: result = $result")
 
+    //When a cache receives a request that can be satisfied by a stored
+    //response that has a Vary header field (Section 7.1.4 of [RFC7231]),
+    //it MUST NOT use that response unless all of the selecting header
+    //fields nominated by the Vary header field match in both the original
+    //request (i.e., that associated with the stored response), and the
+    //presented request.
+    // https://tools.ietf.org/html/rfc7234#section-4.1
+
+    // FIXME XXX Find the response which matches the secondary keys...
+    // Need to implement Vary header support.  It's not all that fun.
+    //
+    // http://www.bizcoder.com/the-insanity-of-the-vary-header
+    // https://blogs.msdn.microsoft.com/ieinternals/2009/06/17/vary-with-care/
+    // https://www.fastly.com/blog/best-practices-for-using-the-vary-header
+    // https://www.subbu.org/blog/2007/12/vary-header-for-restful-applications
+    // https://www.mnot.net/blog/2017/03/16/browser-caching#vary
+
     // FIXME XXX Find the response which matches the secondary keys...
     val fullResponse = result match {
       case Some(entry) =>
