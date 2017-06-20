@@ -48,22 +48,22 @@ You can define your own BodyWritable or BodyReadable, but if you want to use the
 #### Scala
 
 ```scala
-import play.api.libs.ws.DefaultBodyReadables._
-import play.api.libs.ws.DefaultBodyWritables._
+import play.api.libs.ws.DefaultBodyReadables
+import play.api.libs.ws.DefaultBodyWritables
 ```
 
 More likely you will want the XML and JSON support:
 
 ```scala
-import play.api.libs.ws.XMLBodyReadables._
-import play.api.libs.ws.XMLBodyWritables._
+import play.api.libs.ws.XMLBodyReadables
+import play.api.libs.ws.XMLBodyWritables
 ```
 
 or
 
 ```scala
-import play.api.libs.ws.JsonBodyReadables._
-import play.api.libs.ws.JsonBodyWritables._
+import play.api.libs.ws.JsonBodyReadables
+import play.api.libs.ws.JsonBodyWritables
 ```
 
 To use a BodyReadable in a response, you must type the response explicitly:
@@ -103,7 +103,7 @@ You can also define your own custom BodyReadable:
 case class Foo(body: String)
 
 implicit val fooBodyReadable = BodyReadable[Foo] { response =>
-  import play.shaded.ahc.org.asynchttpclient.{ Response => AHCResponse }
+  import play.shaded.ahc.org.asynchttpclient.{ Response => AHCResponse }    
   val ahcResponse = response.asInstanceOf[StandaloneAhcWSResponse].underlying[AHCResponse]
   Foo(ahcResponse.getResponseBody)
 }
@@ -126,6 +126,21 @@ To use the default type mappings in Java, you should use the following:
 import play.libs.ws.DefaultBodyReadables;
 import play.libs.ws.DefaultBodyWritables;
 ```
+
+For Play-JSON, add the following:
+
+```java
+import play.libs.ws.JsonBodyReadables;
+import play.libs.ws.JsonBodyWritables;
+```
+
+For XML support add the following:
+
+```java
+import play.libs.ws.XmlBodyReadables;
+import play.libs.ws.XmlBodyWritables;
+```
+
 
 followed by:
 

@@ -10,7 +10,8 @@ import com.typesafe.play.cachecontrol.ResponseServeAction
 import org.joda.time.DateTime
 import org.slf4j.{ Logger, LoggerFactory }
 
-import scala.concurrent.Await
+import scala.compat.java8.FutureConverters
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.Duration
 
 /**
@@ -20,8 +21,9 @@ class AsyncCachingHandler[T](
   request: Request,
   handler: AsyncCompletionHandler[T],
   cache: AhcHttpCache,
-  maybeAction: Option[ResponseServeAction])
-    extends AsyncHandler[T]
+  maybeAction: Option[ResponseServeAction],
+  executionContext: ExecutionContext)
+    extends AsyncHandler[ListenableFuture[T]]
     with TimeoutResponse
     with Debug {
 
@@ -48,7 +50,7 @@ class AsyncCachingHandler[T](
 
     maybeAction match {
       case Some(ValidateOrTimeout(reason)) =>
-        logger.debug(s"onCompleted: returning timeout because $reason", t)
+        logger.debug(s"onThrowable: returning timeout because $reason", t)
 
         // If no-cache or must-revalidate exist, then a
         // successful validation has to happen -- i.e. both stale AND fresh
@@ -61,7 +63,7 @@ class AsyncCachingHandler[T](
         // If not, then sending a cached response on a disconnect is acceptable
         // as long as 110 and 112 warnings are sent along with it.
         // https://tools.ietf.org/html/rfc7234#section-4.2.4
-        logger.debug(s"onCompleted: action = $other", t)
+        logger.debug(s"onThrowable: action = $other", t)
         processDisconnectedResponse()
     }
   }
@@ -123,104 +125,116 @@ class AsyncCachingHandler[T](
 
     // "Handling a Validation Response"
     // https://tools.ietf.org/html/rfc7234#section-4.3.3
-    if (cache.isNotModified(response)) {
-      processNotModifiedResponse(response)
-    } else if (cache.isError(response)) {
-      //o  However, if a cache receives a 5xx (Server Error) response while
-      //attempting to validate a response, it can either forward this
-      //response to the requesting client, or act as if the server failed
-      //to respond.  In the latter case, the cache MAY send a previously
-      //stored response (see Section 4.2.4).
+    val future = {
+      if (cache.isNotModified(response)) {
+        processNotModifiedResponse(response)
+      } else if (cache.isError(response)) {
+        //o  However, if a cache receives a 5xx (Server Error) response while
+        //attempting to validate a response, it can either forward this
+        //response to the requesting client, or act as if the server failed
+        //to respond.  In the latter case, the cache MAY send a previously
+        //stored response (see Section 4.2.4).
 
-      maybeAction match {
-        case Some(Validate(reason, staleIfError)) if staleIfError =>
-          processStaleResponse(response)
-        case other =>
-          processFullResponse(response)
+        maybeAction match {
+          case Some(Validate(reason, staleIfError)) if staleIfError =>
+            processStaleResponse(response)
+          case other =>
+            processFullResponse(response)
+        }
+      } else {
+        processFullResponse(response)
       }
-    } else {
-      processFullResponse(response)
     }
+
+    val listenableFuture = new CacheFuture[T]()
+    listenableFuture.setInnerFuture(FutureConverters.toJava(future))
+    listenableFuture
   }
 
   protected def processTimeoutResponse(): Unit = {
     handler.onCompleted(timeoutResponse)
   }
 
-  protected def processDisconnectedResponse(): T = {
+  protected def processDisconnectedResponse(): Unit = {
     logger.debug(s"processDisconnectedResponse:")
 
-    val result = Await.result(cache.get(key), timeout)
-    val finalResponse = result match {
-      case Some(entry) =>
-        val currentAge = cache.calculateCurrentAge(request, entry, requestTime)
-        val freshnessLifetime = cache.calculateFreshnessLifetime(request, entry)
-        val isFresh = freshnessLifetime.isGreaterThan(currentAge)
+    cache.get(key).map { result =>
+      val finalResponse = result match {
+        case Some(entry) =>
+          val currentAge = cache.calculateCurrentAge(request, entry, requestTime)
+          val freshnessLifetime = cache.calculateFreshnessLifetime(request, entry)
+          val isFresh = freshnessLifetime.isGreaterThan(currentAge)
 
-        cache.addRevalidationFailed {
-          cache.addDisconnectHeader {
-            cache.generateCachedResponse(request, entry, currentAge, isFresh = isFresh)
+          cache.addRevalidationFailed {
+            cache.addDisconnectHeader {
+              cache.generateCachedResponse(request, entry, currentAge, isFresh = isFresh)
+            }
           }
-        }
 
-      case None =>
-        // Nothing in cache.  Return the timeout.
-        timeoutResponse
-    }
-    handler.onCompleted(finalResponse)
+        case None =>
+          // Nothing in cache.  Return the timeout.
+          timeoutResponse
+      }
+      handler.onCompleted(finalResponse)
+    }(executionContext)
   }
 
-  protected def processStaleResponse(response: CacheableResponse): T = {
+  protected def processStaleResponse(response: CacheableResponse): Future[T] = {
     logger.debug(s"processCachedResponse: response = ${debug(response)}")
 
-    val result = Await.result(cache.get(key), timeout)
-    val finalResponse = result match {
-      case Some(entry) =>
-        val currentAge = cache.calculateCurrentAge(request, entry, requestTime)
+    cache.get(key).map { result =>
+      val finalResponse = result match {
+        case Some(entry) =>
+          val currentAge = cache.calculateCurrentAge(request, entry, requestTime)
 
-        cache.addRevalidationFailed {
-          cache.generateCachedResponse(request, entry, currentAge, isFresh = false)
-        }
+          cache.addRevalidationFailed {
+            cache.generateCachedResponse(request, entry, currentAge, isFresh = false)
+          }
 
-      case None =>
-        // Nothing in cache.  Return the error.
-        response
-    }
-    handler.onCompleted(finalResponse)
+        case None =>
+          // Nothing in cache.  Return the error.
+          response
+      }
+      handler.onCompleted(finalResponse)
+    }(executionContext)
   }
 
-  protected def processFullResponse(fullResponse: CacheableResponse): T = {
+  protected def processFullResponse(fullResponse: CacheableResponse): Future[T] = {
     logger.debug(s"processFullResponse: fullResponse = ${debug(fullResponse)}")
-    import com.typesafe.play.cachecontrol.ResponseCachingActions._
 
-    cache.cachingAction(request, fullResponse) match {
-      case DoNotCacheResponse(reason) =>
-        logger.debug(s"onCompleted: DO NOT CACHE, because $reason")
-      case DoCacheResponse(reason) =>
-        logger.debug(s"isCacheable: DO CACHE, because $reason")
-        cache.cacheResponse(request, fullResponse)
+    Future.successful {
+      import com.typesafe.play.cachecontrol.ResponseCachingActions._
+
+      cache.cachingAction(request, fullResponse) match {
+        case DoNotCacheResponse(reason) =>
+          logger.debug(s"onCompleted: DO NOT CACHE, because $reason")
+        case DoCacheResponse(reason) =>
+          logger.debug(s"isCacheable: DO CACHE, because $reason")
+          cache.cacheResponse(request, fullResponse)
+      }
+      handler.onCompleted(fullResponse)
     }
-    handler.onCompleted(fullResponse)
   }
 
-  protected def processNotModifiedResponse(notModifiedResponse: CacheableResponse): T = {
+  protected def processNotModifiedResponse(notModifiedResponse: CacheableResponse): Future[T] = {
     logger.trace(s"processNotModifiedResponse: notModifiedResponse = $notModifiedResponse")
 
-    val result = Await.result(cache.get(key), timeout)
-    logger.debug(s"processNotModifiedResponse: result = $result")
+    cache.get(key).map { result =>
+      logger.debug(s"processNotModifiedResponse: result = $result")
 
-    // FIXME XXX Find the response which matches the secondary keys...
-    val fullResponse = result match {
-      case Some(entry) =>
-        val newHeaders = notModifiedResponse.getHeaders
-        val freshResponse = cache.freshenResponse(newHeaders, entry.response)
-        cache.cacheResponse(request, freshResponse)
-        freshResponse
-      case None =>
-        notModifiedResponse
-    }
+      // FIXME XXX Find the response which matches the secondary keys...
+      val fullResponse = result match {
+        case Some(entry) =>
+          val newHeaders = notModifiedResponse.getHeaders
+          val freshResponse = cache.freshenResponse(newHeaders, entry.response)
+          cache.cacheResponse(request, freshResponse)
+          freshResponse
+        case None =>
+          notModifiedResponse
+      }
 
-    handler.onCompleted(fullResponse)
+      handler.onCompleted(fullResponse)
+    }(executionContext)
   }
 
   override def toString = {

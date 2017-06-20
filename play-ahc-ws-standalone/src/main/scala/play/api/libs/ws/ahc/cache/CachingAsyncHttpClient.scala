@@ -5,6 +5,7 @@
 package play.api.libs.ws.ahc.cache
 
 import java.io._
+import java.util.concurrent.CompletableFuture
 
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
@@ -12,7 +13,8 @@ import play.shaded.ahc.io.netty.handler.codec.http.DefaultHttpHeaders
 import play.shaded.ahc.org.asynchttpclient.handler.StreamedAsyncHandler
 import play.shaded.ahc.org.asynchttpclient.{ Response => AHCResponse, _ }
 
-import scala.concurrent.{ Await, ExecutionContext }
+import scala.compat.java8.FutureConverters
+import scala.concurrent.{ Await, ExecutionContext, Future }
 
 trait TimeoutResponse {
 
@@ -38,6 +40,8 @@ class CachingAsyncHttpClient(
   import com.typesafe.play.cachecontrol.ResponseSelectionActions._
   import com.typesafe.play.cachecontrol.ResponseServeActions._
   import com.typesafe.play.cachecontrol._
+
+  private val executionContext: ExecutionContext = scala.concurrent.ExecutionContext.global
 
   private val logger = LoggerFactory.getLogger(this.getClass)
 
@@ -223,8 +227,8 @@ class CachingAsyncHttpClient(
     executeFromCache(handler, request, timeoutResponse)
   }
 
-  protected def cacheAsyncHandler[T](request: Request, handler: AsyncCompletionHandler[T], action: Option[ResponseServeAction] = None): AsyncCachingHandler[T] = {
-    new AsyncCachingHandler(request, handler, ahcHttpCache, action)
+  protected def cacheAsyncHandler[T](request: Request, handler: AsyncCompletionHandler[T], action: Option[ResponseServeAction] = None): AsyncCachingHandler[ListenableFuture[T]] = {
+    new AsyncCachingHandler(request, handler, ahcHttpCache, action, executionContext)
   }
 
   override def prepareGet(s: String): BoundRequestBuilder = {

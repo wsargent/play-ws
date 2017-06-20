@@ -77,7 +77,7 @@ object AsyncCacheableConnection {
 /**
  * A wrapper to return a ListenableFuture.
  */
-class CacheFuture[T](handler: AsyncHandler[T]) extends ListenableFuture[T] {
+class CacheFuture[T]() extends ListenableFuture[T] {
 
   private var innerFuture: java.util.concurrent.CompletableFuture[T] = _
 
