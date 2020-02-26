@@ -165,6 +165,7 @@ class AhcWSRequestSpec extends Specification with Mockito with DefaultBodyReadab
         .withPrincipal("principal")
         .withPassword("password")
         .withProxyType("socksv5")
+        .withNonProxyHosts(java.util.Arrays.asList("derp"))
         .build()
 
       val req = request.setProxyServer(proxyServer)
@@ -174,10 +175,11 @@ class AhcWSRequestSpec extends Specification with Mockito with DefaultBodyReadab
 
       (actual.getHost must be).equalTo("localhost")
       (actual.getPort must be).equalTo(8080)
-      (actual.getProxyType must be).equalTo(ProxyType.SOCKS_V5)
       (actual.getRealm.getPrincipal must be).equalTo("principal")
       (actual.getRealm.getPassword must be).equalTo("password")
       (actual.getRealm.getScheme must be).equalTo(AuthScheme.BASIC)
+      (actual.getProxyType must be).equalTo(ProxyType.SOCKS_V5)
+      (actual.getNonProxyHosts.asScala must contain("derp"))
     }
 
     "Use a custom signature calculator" in {
