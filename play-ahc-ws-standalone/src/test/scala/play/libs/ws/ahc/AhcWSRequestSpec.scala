@@ -159,7 +159,8 @@ class AhcWSRequestSpec extends Specification with Mockito with DefaultBodyReadab
     "Use a proxy server" in {
       val client  = mock[StandaloneAhcWSClient]
       val request = new StandaloneAhcWSRequest(client, "http://example.com", /*materializer*/ null)
-      val proxyServer = DefaultWSProxyServer.builder()
+      val proxyServer = DefaultWSProxyServer
+        .builder()
         .withHost("localhost")
         .withPort(8080)
         .withPrincipal("principal")
@@ -168,7 +169,8 @@ class AhcWSRequestSpec extends Specification with Mockito with DefaultBodyReadab
         .withNonProxyHosts(java.util.Arrays.asList("derp"))
         .build()
 
-      val req = request.setProxyServer(proxyServer)
+      val req = request
+        .setProxyServer(proxyServer)
         .asInstanceOf[StandaloneAhcWSRequest]
         .buildRequest()
       val actual = req.getProxyServer

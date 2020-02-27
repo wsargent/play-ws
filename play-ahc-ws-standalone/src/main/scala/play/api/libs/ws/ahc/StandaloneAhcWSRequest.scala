@@ -17,7 +17,8 @@ import play.shaded.ahc.io.netty.buffer.Unpooled
 import play.shaded.ahc.io.netty.handler.codec.http.HttpHeaders
 import play.shaded.ahc.org.asynchttpclient.Realm.AuthScheme
 import play.shaded.ahc.org.asynchttpclient._
-import play.shaded.ahc.org.asynchttpclient.proxy.{ProxyType, ProxyServer => AHCProxyServer}
+import play.shaded.ahc.org.asynchttpclient.proxy.ProxyType
+import play.shaded.ahc.org.asynchttpclient.proxy.{ ProxyServer => AHCProxyServer }
 import play.shaded.ahc.org.asynchttpclient.util.HttpUtils
 
 import scala.collection.JavaConverters._

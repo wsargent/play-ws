@@ -22,7 +22,7 @@ import play.shaded.ahc.org.asynchttpclient.Realm.AuthScheme
 import play.shaded.ahc.org.asynchttpclient.SignatureCalculator
 import play.shaded.ahc.org.asynchttpclient.Param
 import play.shaded.ahc.org.asynchttpclient.proxy.ProxyType
-import play.shaded.ahc.org.asynchttpclient.{Request => AHCRequest}
+import play.shaded.ahc.org.asynchttpclient.{ Request => AHCRequest }
 
 class AhcWSRequestSpec
     extends Specification

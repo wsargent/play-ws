@@ -80,6 +80,7 @@ case class DefaultWSCookie(
  * A WS proxy.
  */
 trait WSProxyServer {
+
   /** The hostname of the proxy server. */
   def host: String
 
